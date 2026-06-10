@@ -22,7 +22,7 @@ void	display_help() {
 	printf("                              default: 1\n");
 	printf("  -W --timeout <timeout>    time to wait for response in milliseconds\n");
 	printf("                              0xffffffff > <timeout> >= 0\n");
-	printf("                              default: 10000 == 10s\n");
+	printf("                              default: 10000 -> 10s\n");
 	printf("  -Q --tos <tos>            set Quality Of Serivce bits\n");
 	printf("                              0xff < <tos> >= 0\n");
 	printf("                              default: 0\n");
@@ -50,6 +50,10 @@ bool	op_verbose(int c, char **v, int *current_arg) {
 
 bool op_flood(int c, char **v, int *current_arg) {
 	if (op_general_check(g_vars.input.flood)) return False;
+	if (g_vars.input.verbose) { 
+		printf("WARN: --verbose will be ignored due to the flood option\n");
+		g_vars.input.verbose = False;
+	}
 	g_vars.input.flood = True;
 	return True;
 }
@@ -238,28 +242,58 @@ bool	set_requested_ip_options() {
 	return _i >= 0;
 }
 
+void	print_outgoing_packet() {
+	if (g_vars.input.flood)
+		write(1, ".", 1);
+}
+
+void	print_incoming_packet(struct icmphdr *icmphdr, struct timeval *start, struct timeval *end) {
+	if (g_vars.input.flood) {
+		write(1, "\b", 1);
+		return;
+	}
+	if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose)
+		return;
+	printf("%s t=%0.3f ms, echo.id=%i, icmp_seq=%i\n",
+		icmphdr->type == ICMP_ECHOREPLY ? "icmp_echoreply": "icmp_reply",
+		((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000),
+		icmphdr->un.echo.id, icmphdr->un.echo.sequence);
+}
+
 void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	char		packet_out[PK_SIZE], packet_in[PK_SIZE];
 	struct	icmphdr	*icmphdr_out;
 	struct	icmphdr	icmphdr_in;
+	struct	timeval	timeval_st;
+	struct	timeval	timeval_end;
 	socklen_t		addr_len = sizeof(struct sockaddr);
+	uint16_t		icmphdr_len = sizeof(struct icmphdr);
 	uint16_t		sequence = 0, _ops_res, _ops_inc;
+	uint16_t		ops_id = htons(getpid());
 	fd_set		r_set;
 
+	g_vars.sent_packets = 0;
 	for (;;) {
+		/////// // // SENDING
 		icmphdr_out = (struct icmphdr*)packet_out;
 		memset(packet_out, 0, sizeof(packet_out));
 		icmphdr_out->type = ICMP_ECHO;
-		icmphdr_out->un.echo.id = 2003;
+		icmphdr_out->un.echo.id = ops_id;
 		icmphdr_out->un.echo.sequence = sequence++;
-		icmphdr_out->checksum = csum((unsigned short *)packet_out, sizeof(struct icmphdr)/2);
+		icmphdr_out->checksum = csum((unsigned short *)packet_out, icmphdr_len/2);
 
-		_ops_res = sendto(g_vars.sock, packet_out, sizeof(struct icmphdr), 0, g_vars.dest->ai_addr, addr_len);
+		gettimeofday(&timeval_st, NULL);
+		_ops_res = sendto(g_vars.sock, packet_out, icmphdr_len, 0, g_vars.dest->ai_addr, addr_len);
 		if (_ops_res < 0) {
 			perror("ft_ping: sendto()");
 			break;
 		}
-		// print_out_packet;
+		print_outgoing_packet();
+		g_vars.sent_packets += 1;
+		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
+			break;
+
+		//// // / /// WAITING FOR RESPONSE
 		FD_ZERO(&r_set);
 		FD_SET(g_vars.sock, &r_set);
 		_ops_res = select(g_vars.sock + 1, &r_set, NULL, NULL, timeout);
@@ -267,11 +301,19 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 			perror("ft_ping: select()");
 			break;
 		}
-		//else if (!_ops_res)	
-			// print timeout
+		else if (!_ops_res) {
+			if (!g_vars.input.flood) {
+				printf("## timeout [%lis] retrying in 1s..\n", timeout->tv_sec);
+				sleep(1);
+			}
+			continue;
+		}
+		gettimeofday(&timeval_end, NULL);
+		
+		//// / // /// READING RESPONSE
 		memset(packet_out, 0, sizeof(packet_out));
 		_ops_inc = 0;
-		for (_ops_inc = 0; _ops_inc < sizeof(struct icmphdr); _ops_inc += _ops_res) {
+		for (_ops_inc = 0; _ops_inc < icmphdr_len; _ops_inc += _ops_res) {
 			memset(packet_in, 0, sizeof(packet_in));
 			_ops_res = recvfrom(g_vars.sock, packet_in, PK_SIZE, 0, g_vars.dest->ai_addr, &addr_len);
 			if (_ops_res < 0) {
@@ -279,10 +321,8 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 				break;
 			}
 			else if (!_ops_res) {
-				if (_ops_inc < sizeof(struct icmphdr)) {
-					// print invalid response
+				if (_ops_inc < icmphdr_len) 
 					continue;
-				}
 				break;
 			}
 			memcpy(packet_out + _ops_inc, packet_in, _ops_res);
@@ -290,9 +330,10 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		if (_ops_res < 0) break;
 
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
-		memcpy(&icmphdr_in, packet_out, sizeof(struct icmphdr));
-		// print_in_packet
-		// sleep_interval
+		memcpy(&icmphdr_in, packet_out, icmphdr_len);
+		
+		print_incoming_packet(&icmphdr_in, &timeval_st, &timeval_end);
+		usleep((interval->tv_sec * 1000000) + interval->tv_usec);
 	}
 }
 
@@ -323,87 +364,9 @@ int main(int c, char **v) {
 		timeout.tv_usec = (g_vars.input.timeout % 1000) * 1000;
 	}
 	else	timeout.tv_sec = 10;
+	gettimeofday(&g_vars.st, NULL);
+	
+	//print_input_options();
+
 	ft_ping(&timeout, &interval);
-}
-
-int a(int c, char **v) {
-	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
-	if (socket < 0)
-		printf("error creating the socket\n");
-
-
-	struct addrinfo *dest;
-	struct addrinfo hint;
-
-	memset(&hint, 0, sizeof(hint));
-
-	hint.ai_family = AF_INET;
-	hint.ai_socktype = SOCK_DGRAM;
-	hint.ai_flags = AI_PASSIVE;
-
-
-	int i = getaddrinfo("google.com", NULL, &hint, &dest);
-	if (i) {
-		printf("host unreachable\n");
-		exit(1);
-	}
-	
-	char *ip = inet_ntoa(((struct sockaddr_in*)dest->ai_addr)->sin_addr);
-	printf("google.com: %s\n", ip);
-
-	char packet[4000], sec_packet[4000];
-	int sequence = 0;
-
-	fd_set r_set;
-	struct timeval tv = {3, 0};
-	
-	struct icmphdr in_icmphdr;
-
-	socklen_t addr_size = sizeof(struct sockaddr);
-
-	while (1) {
-		struct icmphdr *icmp_hdr = (struct icmphdr*)packet;
-		memset(packet, 0, sizeof(packet));
-		icmp_hdr->type = ICMP_ECHO;
-		icmp_hdr->un.echo.id = 2003;
-		icmp_hdr->un.echo.sequence = sequence++;
-		icmp_hdr->checksum = csum((unsigned short*)packet, sizeof(struct icmphdr)/2);
-
-		i = sendto(sock, packet, sizeof(struct icmphdr), 0, dest->ai_addr, sizeof(struct sockaddr));
-
-		if (i < 0) {
-			perror("sendto");
-			break;
-		}
-		
-		FD_ZERO(&r_set);
-		FD_SET(sock, &r_set);
-		//usleep(250000);
-		i = select(sock + 1, &r_set, NULL, NULL, &tv);
-		if (i < 0) {
-			perror("select");
-			break;
-		}
-		if (!i) {
-			printf("time out\n");
-			break;
-		}
-		memset(packet, 0, sizeof(packet));
-		int j = 0;
-		while (j < sizeof(struct icmphdr)) {
-			memset(sec_packet, 0, sizeof(sec_packet));
-			i = recvfrom(sock, sec_packet, sizeof(sec_packet), 0, dest->ai_addr, &addr_size);
-			if (i < 0) {
-				perror("recvfrom");
-				exit(1);
-			}
-			memcpy(packet + j, sec_packet, i);
-			j += i;
-		}
-		memset(&in_icmphdr, 0, sizeof(struct icmphdr));
-		memcpy(&in_icmphdr, packet, sizeof(struct icmphdr));
-		printf("echo.id=%i, icmp_seq=%i\n", in_icmphdr.un.echo.id, in_icmphdr.un.echo.sequence);
-
-	}
-	return 1;
 }

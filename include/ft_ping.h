@@ -14,13 +14,14 @@
 # include <sys/select.h>
 # include <errno.h>
 # include <signal.h>
+# include <sys/time.h>
 
 # define ft_ping_version	"0x1 <foundations.>"
 # define PK_SIZE		4000
-# define UND	"\033[4m"
-# define CYN	"\x1B[36m"
-# define NRM	"\x1B[0m"
-# define WHT	"\x1B[37m"
+# define UND		"\033[4m"
+# define CYN		"\x1B[36m"
+# define NRM		"\x1B[0m"
+# define WHT		"\x1B[37m"
 
 #ifndef True 
 # define True 1
