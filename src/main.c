@@ -10,7 +10,7 @@ unsigned short csum(unsigned short *buff, int words_n) {
 	return ~sum;
 }
 
-bool op_general_check(bool op_var) { return (op_var || g_var.input.version || g_var.input.help); }
+bool op_general_check(bool op_var) { return (op_var || g_vars.input.version || g_vars.input.help); }
 
 bool op_version(int c, char **v, int *current_arg) {
 	printf("ft_ping: %s\n", ft_ping_version);
