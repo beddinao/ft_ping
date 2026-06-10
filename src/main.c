@@ -173,7 +173,7 @@ bool parse_params(int c, char **v) {
 
 	for (int current_arg = 1; current_arg < c - 1; current_arg+=1) {
 		valid_arg = False;
-		for (uint8_t current_possible_param = 0; current_possible_param < 0xa; current_possible_param += 1) {
+		for (uint8_t current_possible_param = 0; current_possible_param < 0x8; current_possible_param += 1) {
 			possible_one_char_param[0] = one_char_args[current_possible_param*2];
 			possible_one_char_param[1] = one_char_args[current_possible_param*2+1];
 			possible_one_char_param[2] = '\0';
@@ -190,20 +190,52 @@ bool parse_params(int c, char **v) {
 	return True;
 }
 
-int main(int c, char **v) {
-	if (c < 2 || c > 0xff || (c >= 2 && !parse_params(c, v))) {
-		display_help();
-		return 1;
+bool	resolve_addr(char *host) {
+	struct	addrinfo	hints;
+	int		i;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE;
+	i = getaddrinfo(host, NULL, &hints, &g_vars.dest);
+	if (i != 0 || !g_vars.dest) {
+		printf("ft_ping: %s: Name or service not known\n", host);
+		return False;
 	}
+	g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
+	if (g_vars.dest_ip)
+		printf("%s (%s)\n", host, g_vars.dest_ip);
+	return True;
+}
 
-
+void	print_input_options() {
 	printf("\nBOOLS:\n--version: %i\n--help: %i\n--verbose: %i\n--flood: %i\n--numeric_only: %i\n--is_set_count: %i\n--is_set_internval: %i\n--is_set_timeout: %i\n--is_set_ttl: %i\n--is_set_tos: %i\n\n",
 			g_vars.input.version, g_vars.input.help, g_vars.input.verbose, g_vars.input.flood, g_vars.input.numeric_only, g_vars.input.is_set_count, g_vars.input.is_set_interval, g_vars.input.is_set_timeout, g_vars.input.is_set_ttl, g_vars.input.is_set_tos);
 
 	printf("\nVALUES:\n--count: %i\n--interval: %i\n--timeout: %i\n--tos: %i\n--ttl: %i\n\n",
 			g_vars.input.count, g_vars.input.interval, g_vars.input.timeout, g_vars.input.tos, g_vars.input.ttl);
+}
 
-	printf("goin for [%s]\n", v[c-1]);
+int main(int c, char **v) {
+	if (c < 2 || c > 0xff || (c >= 2 && !parse_params(c, v))) {
+		display_help();
+		return 1;
+	}
+	if (!resolve_addr(v[c-1]))
+		return 1;
+
+	signal(SIGINT, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+
+	g_vars.sock = socker(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+	if (g_vars.sock < 0) {
+		perror("ft_ping: socket()");
+		return 1;
+	}
+
+
 }
 
 int a(int c, char **v) {

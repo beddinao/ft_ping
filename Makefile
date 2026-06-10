@@ -25,7 +25,7 @@ install:
 
 build/%.o: src/%.c $(HR)
 	@mkdir -p $(dir $@)
-	$(CC) -Iinclude -c $< -o $@
+	$(CC) -Iinclude -c $< -o $@ 
 
 clean:
 	rm -rf build
