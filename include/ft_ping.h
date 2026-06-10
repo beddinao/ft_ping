@@ -12,6 +12,7 @@
 # include <netinet/ip_icmp.h>
 # include <unistd.h>
 # include <sys/select.h>
+# include <errno.h>
 
 # define ft_ping_version	"0x1 <foundations.>"
 # define PK_SIZE		4000
@@ -26,6 +27,9 @@
 #ifndef False
 # define False 0
 #endif
+
+// ./ping --count 1 :: 3
+//
 
 typedef	int	bool;
 
@@ -42,11 +46,11 @@ typedef	struct {
 	bool		is_set_ttl;
 	bool		is_set_tos;
 	//
-	uint64_t		count;		// -c / --count
+	uint32_t		count;		// -c / --count < 0xffffffff
 	uint8_t		interval;		// -i / --interval
 	uint32_t		timeout;		// -W / --timeout
 	uint8_t		tos;		// -Q / --tos
-	uint8_t		ttl;		// --ttl 
+	uint8_t		ttl;		// -t / --ttl 
 }	_options;
 
 typedef	struct {
