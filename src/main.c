@@ -203,9 +203,13 @@ bool	resolve_addr(char *host) {
 		printf("ft_ping: %s: Name or service not known\n", host);
 		return False;
 	}
-	g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
-	if (g_vars.dest_ip)
-		printf("%s (%s)\n", host, g_vars.dest_ip);
+
+	if (!g_vars.input.numeric_only) {
+		g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
+		if (g_vars.dest_ip)
+			printf("%s (%s)\n", host, g_vars.dest_ip);
+	}
+
 	return True;
 }
 
@@ -217,6 +221,81 @@ void	print_input_options() {
 			g_vars.input.count, g_vars.input.interval, g_vars.input.timeout, g_vars.input.tos, g_vars.input.ttl);
 }
 
+bool	set_requested_ip_options() {
+	int	_i = 0;
+	int	option;
+
+	if (g_vars.input.is_set_ttl) {
+		option = g_vars.input.ttl;
+		_i = setsockopt(g_vars.sock, IPPROTO_IP, IP_TTL, &option, sizeof(option));
+	}
+
+	if (g_vars.input.is_set_tos) {
+		option = g_vars.input.tos;
+		_i = setsockopt(g_vars.sock, IPPROTO_IP, IP_TOS, &option, sizeof(option));
+	}
+
+	return _i >= 0;
+}
+
+void	ft_ping(struct timeval *timeout, struct timeval *interval) {
+	char		packet_out[PK_SIZE], packet_in[PK_SIZE];
+	struct	icmphdr	*icmphdr_out;
+	struct	icmphdr	icmphdr_in;
+	socklen_t		addr_len = sizeof(struct sockaddr);
+	uint16_t		sequence = 0, _ops_res, _ops_inc;
+	fd_set		r_set;
+
+	for (;;) {
+		icmphdr_out = (struct icmphdr*)packet_out;
+		memset(packet_out, 0, sizeof(packet_out));
+		icmphdr_out->type = ICMP_ECHO;
+		icmphdr_out->un.echo.id = 2003;
+		icmphdr_out->un.echo.sequence = sequence++;
+		icmphdr_out->checksum = csum((unsigned short *)packet_out, sizeof(struct icmphdr)/2);
+
+		_ops_res = sendto(g_vars.sock, packet_out, sizeof(struct icmphdr), 0, g_vars.dest->ai_addr, addr_len);
+		if (_ops_res < 0) {
+			perror("ft_ping: sendto()");
+			break;
+		}
+		// print_out_packet;
+		FD_ZERO(&r_set);
+		FD_SET(g_vars.sock, &r_set);
+		_ops_res = select(g_vars.sock + 1, &r_set, NULL, NULL, timeout);
+		if (_ops_res < 0) {
+			perror("ft_ping: select()");
+			break;
+		}
+		//else if (!_ops_res)	
+			// print timeout
+		memset(packet_out, 0, sizeof(packet_out));
+		_ops_inc = 0;
+		for (_ops_inc = 0; _ops_inc < sizeof(struct icmphdr); _ops_inc += _ops_res) {
+			memset(packet_in, 0, sizeof(packet_in));
+			_ops_res = recvfrom(g_vars.sock, packet_in, PK_SIZE, 0, g_vars.dest->ai_addr, &addr_len);
+			if (_ops_res < 0) {
+				perror("ft_ping: recvfrom()");
+				break;
+			}
+			else if (!_ops_res) {
+				if (_ops_inc < sizeof(struct icmphdr)) {
+					// print invalid response
+					continue;
+				}
+				break;
+			}
+			memcpy(packet_out + _ops_inc, packet_in, _ops_res);
+		}
+		if (_ops_res < 0) break;
+
+		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
+		memcpy(&icmphdr_in, packet_out, sizeof(struct icmphdr));
+		// print_in_packet
+		// sleep_interval
+	}
+}
+
 int main(int c, char **v) {
 	if (c < 2 || c > 0xff || (c >= 2 && !parse_params(c, v))) {
 		display_help();
@@ -225,17 +304,26 @@ int main(int c, char **v) {
 	if (!resolve_addr(v[c-1]))
 		return 1;
 
-	signal(SIGINT, SIG_IGN);
+	signal(SIGINT, exit);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGQUIT, SIG_IGN);
 
-	g_vars.sock = socker(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
-	if (g_vars.sock < 0) {
-		perror("ft_ping: socket()");
+	g_vars.sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+	if (g_vars.sock < 0 || !set_requested_ip_options()) {
+		perror("ft_ping");
 		return 1;
 	}
 
+	struct	timeval	timeout = {0};
+	struct	timeval	interval = {0};
 
+	interval.tv_sec = g_vars.input.is_set_interval ? g_vars.input.interval : !g_vars.input.flood;
+	if (g_vars.input.is_set_timeout) {
+		timeout.tv_sec = g_vars.input.timeout / 1000;
+		timeout.tv_usec = (g_vars.input.timeout % 1000) * 1000;
+	}
+	else	timeout.tv_sec = 10;
+	ft_ping(&timeout, &interval);
 }
 
 int a(int c, char **v) {

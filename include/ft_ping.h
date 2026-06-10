@@ -13,6 +13,7 @@
 # include <unistd.h>
 # include <sys/select.h>
 # include <errno.h>
+# include <signal.h>
 
 # define ft_ping_version	"0x1 <foundations.>"
 # define PK_SIZE		4000
@@ -59,6 +60,7 @@ typedef	struct {
 	char		*dest_ip;
 	uint64_t		sent_packets;
 	uint64_t		recv_packets;
+	struct	timeval	timeout;
 	struct	timeval	st;
 	struct	timeval	end;
 	_options		input;
