@@ -208,12 +208,8 @@ bool	resolve_addr(char *host) {
 		return False;
 	}
 
-	if (!g_vars.input.numeric_only) {
-		g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
-		if (g_vars.dest_ip)
-			printf("%s (%s)\n", host, g_vars.dest_ip);
-	}
-
+	g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
+	printf("FT_PING %s (%s)\n", host, g_vars.dest_ip ? g_vars.dest_ip : "??");
 	return True;
 }
 
@@ -254,10 +250,20 @@ void	print_incoming_packet(struct icmphdr *icmphdr, struct timeval *start, struc
 	}
 	if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose)
 		return;
-	printf("%s t=%0.3f ms, echo.id=%i, icmp_seq=%i\n",
+
+	bool	hostname_ready = 1;
+	char	hostname[PK_SIZE];
+	memset(hostname, 0, sizeof(hostname));
+
+	if (!g_vars.input.numeric_only)
+		hostname_ready = getnameinfo(g_vars.dest->ai_addr, sizeof(struct addrinfo), hostname, sizeof(hostname), NULL, 0, 0);
+
+	printf("from %s (%s) %s echo.id=%i, icmp_seq=%i t=%0.3f ms\n",
+		(g_vars.input.numeric_only || hostname_ready) ? "\b" : hostname,
+		g_vars.dest_ip,
 		icmphdr->type == ICMP_ECHOREPLY ? "icmp_echoreply": "icmp_reply",
-		((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000),
-		icmphdr->un.echo.id, icmphdr->un.echo.sequence);
+		icmphdr->un.echo.id, icmphdr->un.echo.sequence,
+		((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000));
 }
 
 void	ft_ping(struct timeval *timeout, struct timeval *interval) {
@@ -309,6 +315,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 			continue;
 		}
 		gettimeofday(&timeval_end, NULL);
+		g_vars.recv_packets += 1;
 		
 		//// / // /// READING RESPONSE
 		memset(packet_out, 0, sizeof(packet_out));
@@ -337,6 +344,21 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	}
 }
 
+void	signal_handler(int sig_num) {
+	if (g_vars.sock > 0) close(g_vars.sock);
+	if (g_vars.dest) freeaddrinfo(g_vars.dest);
+	printf("\nquiting...\n");
+	printf("=== %s stats ===\n", g_vars.dest_ip ? g_vars.dest_ip : "");
+	printf("%lu packets transmitted, %lu received, %lu%% packet loss, ",
+		g_vars.sent_packets, g_vars.recv_packets,
+		100 - ((g_vars.recv_packets / g_vars.sent_packets) * 100));
+	struct	timeval	en = {0};
+	gettimeofday(&en, NULL);
+	printf("time: %0.3f ms\n", ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
+		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000));
+	exit(sig_num);
+}
+
 int main(int c, char **v) {
 	if (c < 2 || c > 0xff || (c >= 2 && !parse_params(c, v))) {
 		display_help();
@@ -345,7 +367,7 @@ int main(int c, char **v) {
 	if (!resolve_addr(v[c-1]))
 		return 1;
 
-	signal(SIGINT, exit);
+	signal(SIGINT, signal_handler);
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGQUIT, SIG_IGN);
 
@@ -369,4 +391,5 @@ int main(int c, char **v) {
 	//print_input_options();
 
 	ft_ping(&timeout, &interval);
+	signal_handler(0);
 }
