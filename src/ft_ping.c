@@ -8,6 +8,14 @@ unsigned short csum(unsigned short *buff, int words_n) {
 	return ~sum;
 }
 
+bool	verify_csum(unsigned short *buff, int words_n) {
+	struct icmphdr	*icmphdr = (struct icmphdr*)buff;
+	uint16_t	received_csum = icmphdr->checksum;
+	icmphdr->checksum = 0;
+	printf("calculated csum: %u, found csum: %u\n", csum(buff, words_n), received_csum);
+	return True;
+}
+
 void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	char		packet_out[def_packet_size], packet_in[def_packet_size];
 	struct	icmphdr	*icmphdr_out;
@@ -70,7 +78,10 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
 		memcpy(&icmphdr_in, packet_in, icmphdr_len);
 
-		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end);
+		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end,
+		/// // /// / VERIFYING INTEGRITY
+				verify_csum((unsigned short*)packet_in, icmphdr_len/2));
+
 		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
 			break;
 		usleep((interval->tv_sec * 1000000) + interval->tv_usec);

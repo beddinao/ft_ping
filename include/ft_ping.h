@@ -88,7 +88,7 @@ extern	_data	g_vars;
 // print.c
 void	display_help();
 void	print_outgoing_packet();
-void	print_incoming_packet(struct icmphdr*, uint16_t, struct timeval*, struct timeval*);
+void	print_incoming_packet(struct icmphdr*, uint16_t, struct timeval*, struct timeval*, bool);
 
 // parse.c
 bool	parse_params(int, char**);
