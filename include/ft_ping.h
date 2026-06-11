@@ -1,6 +1,8 @@
 #ifndef FT_PING
 # define FT_PING
 
+# define	_GNU_SOURCE
+
 # include <stdio.h>
 # include <sys/socket.h>
 # include <netinet/in.h>
@@ -20,7 +22,7 @@
 # define ft_ping_version	"0x1 <foundations.>"
 # define def_packet_size	4000
 # define def_ttl		0x40
-# define icmp_types		((const char*[]){ "echoreply", "", "", "destination_unreachable", "source_quench", "redirect_msg", "", "", "echo_request", "router_ad", "time_exceed", "bad_ip_header", "timestamp", "timestamp_reply", "info_request", "info_reply", "addr_mask_request", "addr_mask_reply"})
+# define icmp_types		((const char*[]){ "echoreply", "", "", "destination_unreachable", "source_quench", "redirect_msg", "", "", "echo_request", "router_ad", "router_solic", "time_exceed", "bad_ip_header", "timestamp", "timestamp_reply", "info_request", "info_reply", "addr_mask_request", "addr_mask_reply"})
 
 // ANSI COLORS
 # define UND		"\033[4m"
@@ -90,7 +92,7 @@ extern	_data	g_vars;
 // print.c
 void	display_help();
 void	print_outgoing_packet();
-void	print_incoming_packet(struct icmphdr*, uint16_t, struct timeval*, struct timeval*, bool);
+void	print_incoming_packet(struct sockaddr_in*, struct icmphdr*, uint16_t, struct timeval*, struct timeval*, bool);
 
 // parse.c
 bool	parse_params(int, char**);

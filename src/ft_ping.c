@@ -4,8 +4,8 @@ unsigned short csum(unsigned short *buff, int words_n) {
 	uint64_t sum = 0;
 	while (words_n--)
 		sum += *buff++;
-	unsigned short res = (sum >> 16) + (sum & 0xffff);
-	return ~res;
+	sum = (sum >> 16) + (sum & 0xffff);
+	return (~(unsigned short)sum);
 }
 
 
@@ -15,8 +15,11 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	struct	icmphdr	icmphdr_in;
 	struct	timeval	timeval_st;
 	struct	timeval	timeval_end;
+	struct	sockaddr_in	in_dest_addr;
 	socklen_t		addr_len = sizeof(struct sockaddr);
+	socklen_t		in_addr_len = sizeof(in_dest_addr);
 	uint16_t		icmphdr_len = sizeof(struct icmphdr);
+	uint16_t		iphdr_len = sizeof(struct iphdr);
 	uint16_t		sequence = 0, _ops_res;
 	uint16_t		ops_id = htons(getpid());
 	fd_set		r_set;
@@ -30,7 +33,8 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	for (;;) {
 		/////// // // SENDING
 		icmphdr_out->un.echo.sequence = sequence++;
-		icmphdr_out->checksum = csum((unsigned short *)packet_out, (icmphdr_len + 64)/2);
+		memset(&icmphdr_out->checksum, 0, sizeof(icmphdr_out->checksum));
+		icmphdr_out->checksum = csum((unsigned short *)packet_out, (icmphdr_len+64)/2);
 
 		gettimeofday(&timeval_st, NULL);
 		_ops_res = sendto(g_vars.sock, packet_out, icmphdr_len + 64, 0, g_vars.dest->ai_addr, addr_len);
@@ -44,9 +48,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		//// // / /// WAITING FOR RESPONSE
 		FD_ZERO(&r_set);
 		FD_SET(g_vars.sock, &r_set);
-		printf("pre select\n");
 		_ops_res = select(g_vars.sock + 1, &r_set, NULL, NULL, timeout);
-		printf("post select\n");
 		if (_ops_res < 0) {
 			perror("ft_ping: select()");
 			break;
@@ -63,7 +65,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 
 		//// / // /// READING RESPONSE
 		memset(packet_in, 0, sizeof(packet_in));
-		_ops_res = recvfrom(g_vars.sock, packet_in, def_packet_size, 0, g_vars.dest->ai_addr, &addr_len);
+		_ops_res = recvfrom(g_vars.sock, packet_in, def_packet_size, 0, &in_dest_addr, &in_addr_len);
 		if (_ops_res < 0) {
 			perror("ft_ping: recvfrom()");
 			break;
@@ -71,11 +73,11 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		else if (!_ops_res) continue;
 
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
-		memcpy(&icmphdr_in, packet_in + sizeof(struct iphdr), icmphdr_len);
+		memcpy(&icmphdr_in, packet_in + iphdr_len, icmphdr_len);
 
-		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end,
+		print_incoming_packet(&in_dest_addr, &icmphdr_in, _ops_res - icmphdr_len - iphdr_len, &timeval_st, &timeval_end,
 		/// // /// / VERIFYING INTEGRITY
-				csum((unsigned short*)packet_in + sizeof(struct iphdr), _ops_res/2) == 0x0);
+			csum((unsigned short*)(packet_in + iphdr_len), (_ops_res - iphdr_len)/2) == 0x0);
 
 		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
 			break;
