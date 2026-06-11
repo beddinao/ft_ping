@@ -18,6 +18,7 @@
 
 # define ft_ping_version	"0x1 <foundations.>"
 # define PK_SIZE		4000
+# define icmp_types		((const char*[]){ "echoreply", "", "", "destination_unreachable", "source_quench", "redirect_msg", "", "", "echo_request", "router_ad", "time_exceed", "bad_ip_header", "timestamp", "timestamp_reply", "info_request", "info_reply", "addr_mask_request", "addr_mask_reply"})
 # define UND		"\033[4m"
 # define CYN		"\x1B[36m"
 # define NRM		"\x1B[0m"
@@ -59,8 +60,8 @@ typedef	struct {
 	int		sock;
 	struct	addrinfo	*dest;
 	char		*dest_ip;
-	uint64_t		sent_packets;
-	uint64_t		recv_packets;
+	int		sent_packets;
+	int		recv_packets;
 	struct	timeval	timeout;
 	struct	timeval	st;
 	struct	timeval	end;

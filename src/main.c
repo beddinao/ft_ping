@@ -238,12 +238,16 @@ bool	set_requested_ip_options() {
 	return _i >= 0;
 }
 
+void	print_icmp_type(uint8_t icmp_type) {
+
+}
+
 void	print_outgoing_packet() {
 	if (g_vars.input.flood)
 		write(1, ".", 1);
 }
 
-void	print_incoming_packet(struct icmphdr *icmphdr, struct timeval *start, struct timeval *end) {
+void	print_incoming_packet(struct icmphdr *icmphdr, uint16_t received, struct timeval *start, struct timeval *end) {
 	if (g_vars.input.flood) {
 		write(1, "\b", 1);
 		return;
@@ -258,10 +262,11 @@ void	print_incoming_packet(struct icmphdr *icmphdr, struct timeval *start, struc
 	if (!g_vars.input.numeric_only)
 		hostname_ready = getnameinfo(g_vars.dest->ai_addr, sizeof(struct addrinfo), hostname, sizeof(hostname), NULL, 0, 0);
 
-	printf("from %s (%s) %s echo.id=%i, icmp_seq=%i t=%0.3f ms\n",
+	printf("%u bytes from %s (%s) type=icmp_%s, echo.id=%i, icmp_seq=%i t=%0.3f ms\n",
+		received,
 		(g_vars.input.numeric_only || hostname_ready) ? "\b" : hostname,
 		g_vars.dest_ip,
-		icmphdr->type == ICMP_ECHOREPLY ? "icmp_echoreply": "icmp_reply",
+		icmphdr->type < 18 ? icmp_types[icmphdr->type] : "",
 		icmphdr->un.echo.id, icmphdr->un.echo.sequence,
 		((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000));
 }
@@ -274,30 +279,29 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	struct	timeval	timeval_end;
 	socklen_t		addr_len = sizeof(struct sockaddr);
 	uint16_t		icmphdr_len = sizeof(struct icmphdr);
-	uint16_t		sequence = 0, _ops_res, _ops_inc;
+	uint16_t		sequence = 0, _ops_res;
 	uint16_t		ops_id = htons(getpid());
 	fd_set		r_set;
 
 	g_vars.sent_packets = 0;
+	icmphdr_out = (struct icmphdr*)packet_out;
+	memset(packet_out, 0, sizeof(packet_out));
+	icmphdr_out->type = ICMP_ECHO;
+	icmphdr_out->un.echo.id = ops_id;
+	memset(packet_out + icmphdr_len, 'a', 64);
 	for (;;) {
 		/////// // // SENDING
-		icmphdr_out = (struct icmphdr*)packet_out;
-		memset(packet_out, 0, sizeof(packet_out));
-		icmphdr_out->type = ICMP_ECHO;
-		icmphdr_out->un.echo.id = ops_id;
 		icmphdr_out->un.echo.sequence = sequence++;
 		icmphdr_out->checksum = csum((unsigned short *)packet_out, icmphdr_len/2);
 
 		gettimeofday(&timeval_st, NULL);
-		_ops_res = sendto(g_vars.sock, packet_out, icmphdr_len, 0, g_vars.dest->ai_addr, addr_len);
+		_ops_res = sendto(g_vars.sock, packet_out, icmphdr_len + 64, 0, g_vars.dest->ai_addr, addr_len);
 		if (_ops_res < 0) {
 			perror("ft_ping: sendto()");
 			break;
 		}
 		print_outgoing_packet();
 		g_vars.sent_packets += 1;
-		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
-			break;
 
 		//// // / /// WAITING FOR RESPONSE
 		FD_ZERO(&r_set);
@@ -318,28 +322,20 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		g_vars.recv_packets += 1;
 		
 		//// / // /// READING RESPONSE
-		memset(packet_out, 0, sizeof(packet_out));
-		_ops_inc = 0;
-		for (_ops_inc = 0; _ops_inc < icmphdr_len; _ops_inc += _ops_res) {
-			memset(packet_in, 0, sizeof(packet_in));
-			_ops_res = recvfrom(g_vars.sock, packet_in, PK_SIZE, 0, g_vars.dest->ai_addr, &addr_len);
-			if (_ops_res < 0) {
-				perror("ft_ping: recvfrom()");
-				break;
-			}
-			else if (!_ops_res) {
-				if (_ops_inc < icmphdr_len) 
-					continue;
-				break;
-			}
-			memcpy(packet_out + _ops_inc, packet_in, _ops_res);
+		memset(packet_in, 0, sizeof(packet_in));
+		_ops_res = recvfrom(g_vars.sock, packet_in, PK_SIZE, 0, g_vars.dest->ai_addr, &addr_len);
+		if (_ops_res < 0) {
+			perror("ft_ping: recvfrom()");
+			break;
 		}
-		if (_ops_res < 0) break;
+		else if (!_ops_res) continue;
 
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
-		memcpy(&icmphdr_in, packet_out, icmphdr_len);
+		memcpy(&icmphdr_in, packet_in, icmphdr_len);
 		
-		print_incoming_packet(&icmphdr_in, &timeval_st, &timeval_end);
+		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end);
+		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
+			break;
 		usleep((interval->tv_sec * 1000000) + interval->tv_usec);
 	}
 }
@@ -347,12 +343,13 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 void	signal_handler(int sig_num) {
 	if (g_vars.sock > 0) close(g_vars.sock);
 	if (g_vars.dest) freeaddrinfo(g_vars.dest);
+	struct	timeval	en = {0};
 	printf("\nquiting...\n");
 	printf("=== %s stats ===\n", g_vars.dest_ip ? g_vars.dest_ip : "");
-	printf("%lu packets transmitted, %lu received, %lu%% packet loss, ",
+	printf("%i packets transmitted, %i received, %i lost, %0.2f%% packet loss, ",
 		g_vars.sent_packets, g_vars.recv_packets,
-		100 - ((g_vars.recv_packets / g_vars.sent_packets) * 100));
-	struct	timeval	en = {0};
+		g_vars.sent_packets - g_vars.recv_packets,
+		100.0 - (((double)g_vars.recv_packets/(double)g_vars.sent_packets) * 100.0));
 	gettimeofday(&en, NULL);
 	printf("time: %0.3f ms\n", ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
 		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000));
