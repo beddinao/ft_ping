@@ -3,7 +3,7 @@ SRC = $(wildcard src/*.c)
 UID = $(shell id -u)
 HR = $(wildcard include/*.h)
 OBJ = $(patsubst src/%.c, build/%.o, $(SRC))
-NAME = ping
+NAME = ft_ping
 
 all: $(NAME)
 

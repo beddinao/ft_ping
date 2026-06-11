@@ -42,15 +42,19 @@ void	print_incoming_packet(struct icmphdr *icmphdr, uint16_t received, struct ti
 		return;
 
 	bool	hostname_ready = 1;
-	char	hostname[def_packet_size];
-	memset(hostname, 0, sizeof(hostname));
 
-	if (!g_vars.input.numeric_only)
-		hostname_ready = getnameinfo(g_vars.dest->ai_addr, sizeof(struct addrinfo), hostname, sizeof(hostname), NULL, 0, 0);
+	if (!g_vars.input.numeric_only) {
+		if (!g_vars.resolved_hostname) {
+			memset(g_vars.hostname, 0, sizeof(g_vars.hostname));
+			hostname_ready = getnameinfo(g_vars.dest->ai_addr, sizeof(struct addrinfo), g_vars.hostname, sizeof(g_vars.hostname), NULL, 0, 0);
+			g_vars.resolved_hostname = True;
+		}
+		else 	hostname_ready = 0;
+	}
 
 	printf("%u bytes from %s (%s) %s type=icmp_%s, echo.id=%i, icmp_seq=%i t=%0.3f ms\n",
 		received,
-		(g_vars.input.numeric_only || hostname_ready) ? "\b" : hostname,
+		(g_vars.input.numeric_only || hostname_ready) ? "\b" : g_vars.hostname,
 		g_vars.dest_ip,
 		valid_csum ? "\b" : "(invalid_checksum)",
 		icmphdr->type < 18 ? icmp_types[icmphdr->type] : "",

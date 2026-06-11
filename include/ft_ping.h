@@ -75,6 +75,8 @@ typedef	struct {
 	int		sock;
 	struct	addrinfo	*dest;
 	char		*dest_ip;
+	char		hostname[def_packet_size];
+	bool		resolved_hostname;
 	int		sent_packets;
 	int		recv_packets;
 	struct	timeval	timeout;

@@ -1,20 +1,13 @@
 #include <ft_ping.h>
 
 unsigned short csum(unsigned short *buff, int words_n) {
-	unsigned short sum = 0;
+	uint64_t sum = 0;
 	while (words_n--)
 		sum += *buff++;
-	sum = (sum >> 16) + (sum & 0xffff);
-	return ~sum;
+	unsigned short res = (sum >> 16) + (sum & 0xffff);
+	return ~res;
 }
 
-bool	verify_csum(unsigned short *buff, int words_n) {
-	struct icmphdr	*icmphdr = (struct icmphdr*)buff;
-	uint16_t	received_csum = icmphdr->checksum;
-	icmphdr->checksum = 0;
-	printf("calculated csum: %u, found csum: %u\n", csum(buff, words_n), received_csum);
-	return True;
-}
 
 void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	char		packet_out[def_packet_size], packet_in[def_packet_size];
@@ -37,7 +30,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	for (;;) {
 		/////// // // SENDING
 		icmphdr_out->un.echo.sequence = sequence++;
-		icmphdr_out->checksum = csum((unsigned short *)packet_out, icmphdr_len/2);
+		icmphdr_out->checksum = csum((unsigned short *)packet_out, (icmphdr_len + 64)/2);
 
 		gettimeofday(&timeval_st, NULL);
 		_ops_res = sendto(g_vars.sock, packet_out, icmphdr_len + 64, 0, g_vars.dest->ai_addr, addr_len);
@@ -80,7 +73,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 
 		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end,
 		/// // /// / VERIFYING INTEGRITY
-				verify_csum((unsigned short*)packet_in, icmphdr_len/2));
+				csum((unsigned short*)packet_in, _ops_res/2) == 0x0);
 
 		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
 			break;
