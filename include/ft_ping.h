@@ -16,23 +16,38 @@
 # include <signal.h>
 # include <sys/time.h>
 
+// GENERAL PURPOSE MACROS
 # define ft_ping_version	"0x1 <foundations.>"
-# define PK_SIZE		4000
+# define def_packet_size	4000
+# define def_ttl		0x40
 # define icmp_types		((const char*[]){ "echoreply", "", "", "destination_unreachable", "source_quench", "redirect_msg", "", "", "echo_request", "router_ad", "time_exceed", "bad_ip_header", "timestamp", "timestamp_reply", "info_request", "info_reply", "addr_mask_request", "addr_mask_reply"})
+
+// ANSI COLORS
 # define UND		"\033[4m"
 # define CYN		"\x1B[36m"
 # define NRM		"\x1B[0m"
 # define WHT		"\x1B[37m"
 
-#ifndef True 
-# define True 1
-#endif
-#ifndef False
-# define False 0
-#endif
+// KBYTES UNITS IN BYTES
+# define _64KB		0x10000
+# define _32KB		0x8000
+# define _16KB		0x4000
+# define _08KB		0x2000
+# define _04KB		0x1000
 
-// ./ping --count 1 :: 3
-//
+// UNSINGED INTEGER TYPES MAX VALUES
+# define U64_MAX		0xffffffffffffffff
+# define U32_MAX		0xffffffff
+# define U16_MAX		0xffff
+# define U08_MAX		0xff
+
+# ifndef True 
+# define True 		1
+# endif
+
+# ifndef False
+# define False		0
+# endif
 
 typedef	int	bool;
 
@@ -49,8 +64,8 @@ typedef	struct {
 	bool		is_set_ttl;
 	bool		is_set_tos;
 	//
-	uint32_t		count;		// -c / --count < 0xffffffff
-	uint8_t		interval;		// -i / --interval
+	uint32_t		count;		// -c / --count
+	uint32_t		interval;		// -i / --interval
 	uint32_t		timeout;		// -W / --timeout
 	uint8_t		tos;		// -Q / --tos
 	uint8_t		ttl;		// -t / --ttl 
@@ -69,5 +84,16 @@ typedef	struct {
 }	_data;
 
 extern	_data	g_vars;
+
+// print.c
+void	display_help();
+void	print_outgoing_packet();
+void	print_incoming_packet(struct icmphdr*, uint16_t, struct timeval*, struct timeval*);
+
+// parse.c
+bool	parse_params(int, char**);
+
+// ft_ping.c
+void	ft_ping(struct timeval*, struct timeval *);
 
 #endif
