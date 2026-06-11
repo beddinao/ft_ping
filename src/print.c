@@ -36,8 +36,8 @@ void	print_incoming_packet(struct icmphdr *icmphdr, uint16_t received, struct ti
 		write(1, "\b", 1);
 		return;
 	}
-	if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose)
-		return;
+	/*if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose)
+		return;*/
 	if (!valid_csum && !g_vars.input.verbose)
 		return;
 

@@ -33,7 +33,14 @@ bool	set_requested_ip_options() {
 		_i = setsockopt(g_vars.sock, IPPROTO_IP, IP_TOS, &option, sizeof(option));
 	}
 
+	option = 0;
+	_i = setsockopt(g_vars.sock, IPPROTO_IP, IP_HDRINCL, &option, sizeof(option));
+
 	return _i >= 0;
+}
+
+bool	check_root_privileges(uid_t r, uid_t e, uid_t s) {
+	return getresuid(&r, &e, &s) < 0 || e;
 }
 
 void	signal_handler(int sig_num) {
@@ -53,6 +60,10 @@ void	signal_handler(int sig_num) {
 }
 
 int main(int c, char **v) {
+	if (check_root_privileges(0, 0, 0)) {
+		printf("ft_ping: error: need root privileges\n");
+		return 1;
+	}
 	if (c < 2 || c > 0xff || (c >= 2 && !parse_params(c, v))) {
 		display_help();
 		return 1;
@@ -64,7 +75,7 @@ int main(int c, char **v) {
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGQUIT, SIG_IGN);
 
-	g_vars.sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+	g_vars.sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (g_vars.sock < 0 || !set_requested_ip_options()) {
 		perror("ft_ping");
 		return 1;

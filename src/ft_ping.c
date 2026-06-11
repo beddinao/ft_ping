@@ -44,7 +44,9 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		//// // / /// WAITING FOR RESPONSE
 		FD_ZERO(&r_set);
 		FD_SET(g_vars.sock, &r_set);
+		printf("pre select\n");
 		_ops_res = select(g_vars.sock + 1, &r_set, NULL, NULL, timeout);
+		printf("post select\n");
 		if (_ops_res < 0) {
 			perror("ft_ping: select()");
 			break;
@@ -69,11 +71,11 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		else if (!_ops_res) continue;
 
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
-		memcpy(&icmphdr_in, packet_in, icmphdr_len);
+		memcpy(&icmphdr_in, packet_in + sizeof(struct iphdr), icmphdr_len);
 
 		print_incoming_packet(&icmphdr_in, _ops_res - icmphdr_len, &timeval_st, &timeval_end,
 		/// // /// / VERIFYING INTEGRITY
-				csum((unsigned short*)packet_in, _ops_res/2) == 0x0);
+				csum((unsigned short*)packet_in + sizeof(struct iphdr), _ops_res/2) == 0x0);
 
 		if (g_vars.input.is_set_count && g_vars.sent_packets >= g_vars.input.count)
 			break;
