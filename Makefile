@@ -12,9 +12,9 @@ $(NAME): $(OBJ)
 
 install:
 	@if [ $(UID) -eq 0 ]; then\
-		if [ -e $(shell pwd)/_ping ]; then\
-			cp _ping /bin/;\
-			chmod u+s /bin/_ping;\
+		if [ -e $(shell pwd)/$(NAME) ]; then\
+			cp $(NAME) /bin/;\
+			chmod u+s /bin/$(NAME);\
 		else\
 			echo "error: need to \"make\" first";\
 		fi;\
