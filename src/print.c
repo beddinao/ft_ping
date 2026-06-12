@@ -37,11 +37,8 @@ void	print_incoming_packet(struct sockaddr_in *in_dest, struct icmphdr *icmphdr,
 		return;
 	}
 
-	/*if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose)
-		return;*/
-
-	/*if (!valid_csum && !g_vars.input.verbose)
-		return;*/
+	if (icmphdr->type != ICMP_ECHOREPLY && !g_vars.input.verbose && !g_vars.input.is_set_ttl)
+		return;
 
 	bool	hostname_ready = 1;
 
@@ -54,13 +51,16 @@ void	print_incoming_packet(struct sockaddr_in *in_dest, struct icmphdr *icmphdr,
 		else 	hostname_ready = 0;
 	}
 
-	printf("%u bytes from %s (%s) %s type=icmp_%s, echo.id=%i, icmp_seq=%i t=%0.3f ms\n",
-		received,
-		(g_vars.input.numeric_only || hostname_ready) ? "\b" : g_vars.hostname,
-		g_vars.input.is_set_ttl ?  "" : g_vars.dest_ip,
-		valid_csum ? "\b" : "(invalid icmp csum!)",
-		icmphdr->type < 18 ? icmp_types[icmphdr->type] : "",
-		icmphdr->un.echo.id, icmphdr->un.echo.sequence,
-		((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000));
+	if (!g_vars.input.is_set_ttl)
+		printf("%u %sbytes from%s %s %s(%s)%s %s", 
+			received, WHT, NRM,
+			(g_vars.input.numeric_only || hostname_ready) ? "\b" : g_vars.hostname,
+			WHT, g_vars.dest_ip, NRM, 
+			valid_csum ? "\b" : "(invalid icmp csum!)");
+
+	printf(" %stype=%sicmp_%s, %secho.id=%s%i, %sicmp_seq%s=%i %st=%s%s%0.3f ms%s\n",
+		WHT, NRM, icmphdr->type < 18 ? icmp_types[icmphdr->type] : "",
+		WHT, NRM, icmphdr->un.echo.id, WHT, NRM, icmphdr->un.echo.sequence,
+		WHT, NRM, UND, ((double)(end->tv_sec - start->tv_sec) * 1000) + ((double)(end->tv_usec - start->tv_usec) / 1000), NRM);
 }
 

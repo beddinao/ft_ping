@@ -79,8 +79,8 @@ typedef	struct {
 	char		*dest_ip;
 	char		hostname[def_packet_size];
 	bool		resolved_hostname;
-	int		sent_packets;
-	int		recv_packets;
+	uint64_t		sent_packets;
+	uint64_t		recv_packets;
 	struct	timeval	timeout;
 	struct	timeval	st;
 	struct	timeval	end;

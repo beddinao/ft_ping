@@ -15,7 +15,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 	struct	icmphdr	icmphdr_in;
 	struct	timeval	timeval_st;
 	struct	timeval	timeval_end;
-	struct	sockaddr_in	in_dest_addr;
+	struct	sockaddr_in in_dest_addr;
 	socklen_t		addr_len = sizeof(struct sockaddr);
 	socklen_t		in_addr_len = sizeof(in_dest_addr);
 	uint16_t		icmphdr_len = sizeof(struct icmphdr);
@@ -44,6 +44,8 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		}
 		print_outgoing_packet();
 		g_vars.sent_packets += 1;
+		if (g_vars.sent_packets >= U64_MAX)
+			g_vars.sent_packets = 0;
 
 		//// // / /// WAITING FOR RESPONSE
 		FD_ZERO(&r_set);
@@ -62,6 +64,8 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		}
 		gettimeofday(&timeval_end, NULL);
 		g_vars.recv_packets += 1;
+		if (g_vars.recv_packets >= U64_MAX)
+			g_vars.recv_packets = 0;
 
 		//// / // /// READING RESPONSE
 		memset(packet_in, 0, sizeof(packet_in));

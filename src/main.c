@@ -49,13 +49,14 @@ void	signal_handler(int sig_num) {
 	struct	timeval	en = {0};
 	printf("\nquiting...\n");
 	printf("=== %s stats ===\n", g_vars.dest_ip ? g_vars.dest_ip : "");
-	printf("%i packets transmitted, %i received, %i lost, %0.2f%% packet loss, ",
-		g_vars.sent_packets, g_vars.recv_packets,
-		g_vars.sent_packets - g_vars.recv_packets,
-		100.0 - (((double)g_vars.recv_packets/(double)g_vars.sent_packets) * 100.0));
+	printf("%i %spackets transmitted, %s%i %sreceived, %s%i %slost, %s%0.2f%% %spacket loss, %s",
+		g_vars.sent_packets, WHT, NRM, g_vars.recv_packets, WHT, NRM,
+		g_vars.sent_packets - g_vars.recv_packets, WHT, NRM,
+		100.0 - (((double)g_vars.recv_packets/(double)g_vars.sent_packets) * 100.0),
+		WHT, NRM);
 	gettimeofday(&en, NULL);
-	printf("time: %0.3f ms\n", ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
-		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000));
+	printf("%stime: %s%s%0.3f ms%s\n", WHT, NRM, UND, ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
+		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000), NRM);
 	exit(sig_num);
 }
 
