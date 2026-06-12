@@ -79,7 +79,7 @@ void	ft_ping(struct timeval *timeout, struct timeval *interval) {
 		memset(&icmphdr_in, 0, sizeof(icmphdr_in));
 		memcpy(&icmphdr_in, packet_in + iphdr_len, icmphdr_len);
 
-		print_incoming_packet(&in_dest_addr, &icmphdr_in, _ops_res - icmphdr_len - iphdr_len, &timeval_st, &timeval_end,
+		print_incoming_packet(&in_dest_addr, &icmphdr_in, icmphdr_out, _ops_res - icmphdr_len - iphdr_len, &timeval_st, &timeval_end,
 		/// // /// / VERIFYING INTEGRITY
 			csum((unsigned short*)(packet_in + iphdr_len), (_ops_res - iphdr_len)/2) == 0x0);
 

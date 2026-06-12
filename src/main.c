@@ -6,10 +6,14 @@ bool	resolve_addr(char *host) {
 	struct	addrinfo	hints;
 	int		i;
 
+	if (g_vars.input.verbose) {
+		printf("ft_ping: sock4.fd: %i (socktype: SOCK_RAW), hints.ai_family: AF_INET\n\n", g_vars.sock);
+	}
+	
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_flags = AI_PASSIVE;
+	hints.ai_flags = AI_PASSIVE|AI_CANONNAME;
 	i = getaddrinfo(host, NULL, &hints, &g_vars.dest);
 	if (i != 0 || !g_vars.dest) {
 		printf("ft_ping: %s: Name or service not known\n", host);
@@ -17,6 +21,11 @@ bool	resolve_addr(char *host) {
 	}
 
 	g_vars.dest_ip = inet_ntoa(((struct sockaddr_in*)g_vars.dest->ai_addr)->sin_addr);
+
+	if (g_vars.input.verbose) {
+		printf("ai->ai_family: AF_INET, ai->ai_canonname: '%s'\n", g_vars.dest->ai_canonname);
+	}
+
 	printf("FT_PING %s (%s)\n", host, g_vars.dest_ip ? g_vars.dest_ip : "??");
 	return True;
 }
@@ -49,14 +58,13 @@ void	signal_handler(int sig_num) {
 	struct	timeval	en = {0};
 	printf("\nquiting...\n");
 	printf("=== %s stats ===\n", g_vars.dest_ip ? g_vars.dest_ip : "");
-	printf("%i %spackets transmitted, %s%i %sreceived, %s%i %slost, %s%0.2f%% %spacket loss, %s",
-		g_vars.sent_packets, WHT, NRM, g_vars.recv_packets, WHT, NRM,
-		g_vars.sent_packets - g_vars.recv_packets, WHT, NRM,
-		100.0 - (((double)g_vars.recv_packets/(double)g_vars.sent_packets) * 100.0),
-		WHT, NRM);
+	printf("%i packets transmitted, %i received, %i lost, %0.2f%% packet loss, ",
+		g_vars.sent_packets, g_vars.recv_packets,
+		g_vars.sent_packets - g_vars.recv_packets,
+		100.0 - (((double)g_vars.recv_packets/(double)g_vars.sent_packets) * 100.0));
 	gettimeofday(&en, NULL);
-	printf("%stime: %s%s%0.3f ms%s\n", WHT, NRM, UND, ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
-		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000), NRM);
+	printf("time: %0.3f ms\n", ((double)(en.tv_sec - g_vars.st.tv_sec) * 1000)
+		+ ((double)(en.tv_usec - g_vars.st.tv_usec) / 1000));
 	exit(sig_num);
 }
 
@@ -69,8 +77,6 @@ int main(int c, char **v) {
 		display_help();
 		return 1;
 	}
-	if (!resolve_addr(v[c-1]))
-		return 1;
 
 	signal(SIGINT, signal_handler);
 	signal(SIGPIPE, SIG_IGN);
@@ -81,6 +87,9 @@ int main(int c, char **v) {
 		perror("ft_ping");
 		return 1;
 	}
+
+	if (!resolve_addr(v[c-1]))
+		return 1;
 
 	struct	timeval	timeout = {0};
 	struct	timeval	interval = {0};
